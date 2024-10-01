@@ -15,6 +15,7 @@ celery = "^5.4.0"
 uvicorn = "^0.31.0"
 dynaconf = "^3.2.6"
 pydantic = "^2.9.2"
+asyncpg = "^0.29.0"
 
 [build-system]
 requires = ["poetry-core"]
