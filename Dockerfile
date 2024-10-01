@@ -4,13 +4,11 @@ LABEL authors="Roman Mamin"
 
 WORKDIR /delivery_test_task
 
-RUN apk add --no-cache build-base
-
-RUN pip install poetry
-
 COPY pyproject.toml poetry.lock ./
 
-RUN poetry config virtualenvs.create false && \
+RUN apk add --no-cache build-base postgresql-dev gcc musl-dev libpq && \
+    pip install poetry && \
+    poetry config virtualenvs.create false && \
     poetry install --no-dev
 
 FROM python:3.11-alpine
@@ -18,6 +16,8 @@ FROM python:3.11-alpine
 LABEL authors="Roman Mamin"
 
 WORKDIR /delivery_test_task
+
+RUN apk add --no-cache libpq
 
 COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
 COPY --from=builder /usr/local/bin /usr/local/bin

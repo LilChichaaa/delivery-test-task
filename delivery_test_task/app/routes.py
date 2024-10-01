@@ -1,8 +1,24 @@
 from typing import Optional
+from alembic import command
+from alembic.config import Config
+
 
 from .main import app, router
 
 from ..models.pydantic_models import ParcelCreate, ParcelTypeOut, ParcelOut, ParcelList
+
+
+def run_migrations():
+    """Применение миграций Alembic"""
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+@app.on_event("startup")
+async def on_startup():
+    """Этот код выполняется при запуске приложения FastAPI"""
+    print("Применение миграций...")
+    run_migrations()
+    print("Миграции выполнены")
 
 @router.get("/")
 def read_root():
