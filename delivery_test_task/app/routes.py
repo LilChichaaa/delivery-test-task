@@ -85,20 +85,16 @@ async def get_parcel(parcel_id: int, db: AsyncSession = Depends(get_db)):
     """
     Возвращает данные о посылке по ее уникальному идентификатору.
     """
-    import traceback
-    try:
-        parcel = await Parcel.get_by_id(db, parcel_id)
+    parcel = await Parcel.get_by_id(db, parcel_id)
 
-        return ParcelOut(
-            id=parcel.id,
-            name=parcel.name,
-            weight=parcel.weight,
-            value=parcel.value,
-            parcel_type=parcel.parcel_type.name,
-            delivery_cost=parcel.delivery_cost
-        )
-    except Exception as ex:
-        traceback.print_exc()
+    return ParcelOut(
+        id=parcel.id,
+        name=parcel.name,
+        weight=parcel.weight,
+        value=parcel.value,
+        parcel_type=parcel.parcel_type.name,
+        delivery_cost=parcel.delivery_cost
+    )
 
 @app.post("/parcels/{parcel_id}/assign-company", response_model=str)
 async def assign_company(parcel_id: int, company_id: int, db: AsyncSession = Depends(get_db)):

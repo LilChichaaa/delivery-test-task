@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Union
 
 class ParcelCreate(BaseModel):
     name: str = Field(..., example="Laptop", description="Название посылки")
@@ -21,7 +21,14 @@ class ParcelOut(BaseModel):
     weight: float
     value: float
     parcel_type: str
-    delivery_cost: Optional[float] = None
+    delivery_cost: Optional[Union[float, str]] = None
+
+    @field_validator('delivery_cost', mode='before')
+    @classmethod
+    def set_default_delivery_cost(cls, v):
+        if v is None:
+            return "Не рассчитано"
+        return v
 
 class ParcelTypeOut(BaseModel):
     id: int
