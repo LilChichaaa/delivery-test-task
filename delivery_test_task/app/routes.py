@@ -27,7 +27,7 @@ async def parcel_registration(parcel: ParcelCreate):
 
     Возвращает id посылки.
     """
-    return 1
+    return {"id": 1}
 
 # 2. Получить все типы посылок и их ID
 @app.get("/parcel-types", response_model=list[ParcelTypeOut])

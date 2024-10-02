@@ -17,11 +17,12 @@ class Parcel(Base):
     name = Column(String, nullable=False)
     weight = Column(Float, nullable=False)
     value = Column(Float, nullable=False)
-    parcel_type_id = Column(Integer, ForeignKey('parcel_types.id'), nullable=False)
     delivery_cost = Column(Float, nullable=True)  # Стоимость доставки, если рассчитана
-    transport_company_id = Column(Integer, nullable=True)  # ID транспортной компании
 
+    transport_company_id = Column(Integer, ForeignKey('transport_companies.id'), nullable=True)  # ID транспортной компании
+    parcel_type_id = Column(Integer, ForeignKey('parcel_types.id'), nullable=False)
     parcel_type = relationship("ParcelType", back_populates="parcels")
+    transport_company = relationship("TransportCompany", back_populates="parcels")
 
     __table_args__ = (
         UniqueConstraint('id', 'transport_company_id', name='uix_parcel_company'),
