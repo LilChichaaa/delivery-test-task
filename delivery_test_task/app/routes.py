@@ -3,7 +3,7 @@ from alembic import command
 from alembic.config import Config
 
 
-from .main import app, router
+from .main import app
 
 from ..models.pydantic_models import ParcelCreate, ParcelTypeOut, ParcelOut, ParcelList
 
@@ -20,12 +20,8 @@ async def on_startup():
     run_migrations()
     print("Миграции выполнены")
 
-@router.get("/")
-def read_root():
-    return {"message": "Hello, World!"}
-
-@router.post("/register_parcel", response_model=int)
-async def register_parcel(parcel: ParcelCreate):
+@app.post("/parcel-registration", response_model=int)
+async def parcel_registration(parcel: ParcelCreate):
     """
     Регистрирует новую посылку.
 
@@ -34,7 +30,7 @@ async def register_parcel(parcel: ParcelCreate):
     return 1
 
 # 2. Получить все типы посылок и их ID
-@router.get("/parcel_types", response_model=list[ParcelTypeOut])
+@app.get("/parcel-types", response_model=list[ParcelTypeOut])
 async def get_parcel_types():
     """
     Возвращает список всех типов посылок и их идентификаторы.
@@ -47,7 +43,7 @@ async def get_parcel_types():
     return types  # Здесь будет реализована логика получения типов посылок
 
 # 3. Получить список своих посылок с пагинацией и фильтрацией
-@router.get("/parcels", response_model=ParcelList)
+@app.get("/parcels", response_model=ParcelList)
 async def get_parcels(
     skip: int = 0,
     limit: int = 10,
@@ -77,7 +73,7 @@ async def get_parcels(
     return {"parcels": parcels, "total": 1}
 
 # 4. Получить данные о посылке по ее ID
-@router.get("/parcels/{parcel_id}", response_model=ParcelOut)
+@app.get("/parcels/{parcel_id}", response_model=ParcelOut)
 async def get_parcel(parcel_id: int):
     """
     Возвращает данные о посылке по ее уникальному идентификатору.
@@ -98,5 +94,3 @@ async def get_parcel(parcel_id: int):
         "delivery_cost": 50.0
     }
     return parcel  # Здесь будет реализована логика получения данных о конкретной посылке
-
-app.include_router(router)
