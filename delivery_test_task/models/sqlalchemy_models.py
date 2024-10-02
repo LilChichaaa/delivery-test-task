@@ -17,9 +17,9 @@ class Parcel(Base):
     name = Column(String, nullable=False)
     weight = Column(Float, nullable=False)
     value = Column(Float, nullable=False)
-    delivery_cost = Column(Float, nullable=True)  # Стоимость доставки, если рассчитана
+    delivery_cost = Column(Float, nullable=True)
 
-    transport_company_id = Column(Integer, ForeignKey('transport_companies.id'), nullable=True)  # ID транспортной компании
+    transport_company_id = Column(Integer, ForeignKey('transport_companies.json.id'), nullable=True)
     parcel_type_id = Column(Integer, ForeignKey('parcel_types.id'), nullable=False)
     parcel_type = relationship("ParcelType", back_populates="parcels")
     transport_company = relationship("TransportCompany", back_populates="parcels")
@@ -29,7 +29,7 @@ class Parcel(Base):
     )
 
 class TransportCompany(Base):
-    __tablename__ = 'transport_companies'
+    __tablename__ = 'transport_companies.json'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
