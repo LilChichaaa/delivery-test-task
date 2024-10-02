@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 from alembic import command
 from alembic.config import Config
@@ -5,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from .main import app
+from .swagger import registration, parcel_types, parcels, parcels_num, parcel_asign_company
 
+from .main import app
 from ..models.pydantic_models import ParcelCreate, ParcelTypeOut, ParcelOut, ParcelList
 
 from ..models.database import get_db
@@ -15,45 +17,60 @@ from ..models.sqlalchemy_models import Parcel, ParcelType
 
 
 def run_migrations():
-    """Применение миграций Alembic"""
+    """Применение миграций Alembic при старте приложения"""
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
 
 @app.on_event("startup")
 async def on_startup():
-    """Этот код выполняется при запуске приложения FastAPI"""
+    """Этот код выполняется при запуске приложения FastAPI для применения миграций"""
     print("Применение миграций...")
     run_migrations()
     print("Миграции выполнены")
 
 
-@app.post("/parcel-registration", response_model=dict)
-async def parcel_registration(parcel: ParcelCreate, db: AsyncSession = Depends(get_db)):
+@app.post("/parcel-registration", response_model=dict, tags=["Parcel Management"], summary="Регистрация посылки",
+          description="Регистрирует новую посылку и возвращает уникальный идентификатор.",
+          responses=registration)
+async def parcel_registration(
+        parcel: ParcelCreate,
+        db: AsyncSession = Depends(get_db)
+):
     """
     Регистрирует новую посылку.
 
-    Возвращает уникальный id посылки для сессии пользователя.
+    - **name**: Название посылки
+    - **weight**: Вес посылки в кг
+    - **value**: Стоимость содержимого в долларах
+    - **parcel_type_id**: Идентификатор типа посылки (одежда, электроника и т.д.)
+
+    Возвращает уникальный ID посылки для текущей сессии пользователя.
     """
     parcel_id = await Parcel.create(db, parcel_data=parcel)
 
     return {"id": parcel_id}
 
 
-
-# 2. Получить все типы посылок и их ID
-@app.get("/parcel-types", response_model=list[ParcelTypeOut])
+@app.get("/parcel-types", response_model=list[ParcelTypeOut], tags=["Parcel Management"],
+         summary="Получить все типы посылок", description="Возвращает список всех типов посылок и их идентификаторов.",
+         responses=parcel_types)
 async def get_parcel_types(db: AsyncSession = Depends(get_db)):
     """
-    Возвращает список всех типов посылок и их идентификаторы.
+    Возвращает все доступные типы посылок с их идентификаторами:
+
+    - Documents
+    - Electronics
+    - Clothing
     """
     parcel_types = await ParcelType.get_all_types(db)
 
     return parcel_types
 
 
-# 3. Получить список своих посылок с пагинацией и фильтрацией
-@app.get("/parcels", response_model=ParcelList)
+@app.get("/parcels", response_model=ParcelList, tags=["Parcel Management"], summary="Получить список посылок",
+         description="Возвращает список посылок с фильтрацией и пагинацией на основе номеров страниц.",
+         responses=parcels)
 async def get_parcels(
         page: Optional[int] = 1,
         page_size: Optional[int] = 10,
@@ -62,12 +79,20 @@ async def get_parcels(
         db: AsyncSession = Depends(get_db)
 ):
     """
-    Возвращает список посылок пользователя с фильтрацией и пагинацией на основе номеров страниц.
+    Возвращает список посылок с поддержкой пагинации и фильтрации:
+
+    - **page**: Номер страницы (начиная с 1)
+    - **page_size**: Количество записей на странице
+    - **parcel_type_id**: Фильтр по типу посылки
+    - **has_delivery_cost**: Фильтр по наличию рассчитанной стоимости доставки (True/False)
+
+    Возвращает:
+    - **parcels**: Список посылок
+    - **total**: Общее количество посылок
     """
     if page < 1 or page_size < 1:
         raise HTTPException(status_code=400, detail="Page and page_size must be positive integers.")
 
-    # Расчет количества записей для пропуска на основе текущей страницы
     skip = (page - 1) * page_size
 
     parcels, total = await Parcel.get_all(db, skip=skip, limit=page_size, parcel_type_id=parcel_type_id,
@@ -87,29 +112,50 @@ async def get_parcels(
     return ParcelList(parcels=result, total=total)
 
 
-# 4. Получить данные о посылке по ее ID
-@app.get("/parcels/{parcel_id}", response_model=ParcelOut)
+@app.get("/parcels/{parcel_id}", response_model=ParcelOut, tags=["Parcel Management"],
+         summary="Получить информацию о посылке",
+         description="Возвращает данные о посылке по её уникальному идентификатору.",
+         responses=parcels_num)
 async def get_parcel(parcel_id: int, db: AsyncSession = Depends(get_db)):
     """
-    Возвращает данные о посылке по ее уникальному идентификатору.
+    Получить информацию о посылке по её ID:
+
+    - **parcel_id**: Уникальный идентификатор посылки
+
+    Возвращает:
+    - **id**: Идентификатор посылки
+    - **name**: Название посылки
+    - **weight**: Вес посылки
+    - **value**: Стоимость посылки
+    - **parcel_type**: Тип посылки
+    - **delivery_cost**: Стоимость доставки (если рассчитана)
     """
     parcel = await Parcel.get_by_id(db, parcel_id)
 
     return ParcelOut(
-            id=parcel.id,
-            name=parcel.name,
-            weight=parcel.weight,
-            value=parcel.value,
-            parcel_type=parcel.parcel_type.name,
-            delivery_cost=parcel.delivery_cost
+        id=parcel.id,
+        name=parcel.name,
+        weight=parcel.weight,
+        value=parcel.value,
+        parcel_type=parcel.parcel_type.name,
+        delivery_cost=parcel.delivery_cost
     )
 
 
-@app.post("/parcels/{parcel_id}/assign-company", response_model=dict)
+@app.post("/parcels/{parcel_id}/assign-company", response_model=dict, tags=["Parcel Management"],
+          summary="Привязать посылку к транспортной компании",
+          description="Привязывает посылку к указанной транспортной компании.",
+          responses=parcel_asign_company)
 async def assign_company(parcel_id: int, company_id: int, db: AsyncSession = Depends(get_db)):
     """
     Привязывает посылку к транспортной компании.
+
+    - **parcel_id**: Уникальный идентификатор посылки
+    - **company_id**: Уникальный идентификатор транспортной компании
+
+    Возвращает сообщение о результате операции.
     """
     await Parcel.assign_company(db, parcel_id=parcel_id, company_id=company_id)
 
     return {"message": "Company assigned successfully"}
+
