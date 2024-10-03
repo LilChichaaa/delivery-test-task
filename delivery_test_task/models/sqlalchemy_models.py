@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .database import Base
 from fastapi import HTTPException
 from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.sql import func
 
 class ParcelType(Base):
@@ -106,22 +106,31 @@ class Parcel(Base):
     @classmethod
     async def assign_company(cls, db: AsyncSession, parcel_id: int, company_id: int, user_id: str):
         """Привязывает посылку к транспортной компании с блокировкой"""
-        stmt = select(cls).where(cls.id == parcel_id).where(cls.user_id == user_id).with_for_update()
-        result = await db.execute(stmt)
-        parcel = result.scalar_one_or_none()
-
-        if not parcel:
-            raise HTTPException(status_code=404, detail="Parcel not found")
-
-        if parcel.transport_company_id:
-            raise HTTPException(status_code=400, detail="Parcel already assigned to a transport company")
-
-        parcel.transport_company_id = company_id
         try:
-            await db.commit()
+            async with db.begin():
+                # Выполняем запрос с блокировкой строки
+                stmt = select(cls).where(cls.id == parcel_id).where(cls.user_id == user_id).with_for_update()
+                result = await db.execute(stmt)
+                parcel = result.scalar_one_or_none()
+
+                if not parcel:
+                    raise HTTPException(status_code=404, detail="Parcel not found")
+
+                if parcel.transport_company_id:
+                    raise HTTPException(status_code=400, detail="Parcel already assigned to a transport company")
+
+                parcel.transport_company_id = company_id
+                db.add(parcel)
+
         except IntegrityError:
             await db.rollback()
             raise HTTPException(status_code=400, detail="Company assignment failed due to integrity error.")
+
+        except OperationalError as e:
+            # Обработка блокировок и таймаутов
+            await db.rollback()
+            raise HTTPException(status_code=500, detail="Database operation failed due to concurrency issues.")
+
         return parcel
 
 class TransportCompany(Base):
