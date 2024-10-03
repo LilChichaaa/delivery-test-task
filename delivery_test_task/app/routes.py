@@ -1,10 +1,9 @@
-import json
+import uuid
 from typing import Optional
 from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Depends, Cookie, Response
 
 from .swagger import registration, parcel_types, parcels, parcels_num, parcel_asign_company
 
@@ -22,6 +21,16 @@ def run_migrations():
     command.upgrade(alembic_cfg, "head")
 
 
+def get_user_id(user_id: Optional[str] = Cookie(None), response: Response = None):
+    """
+    Получение и генерация user_id из/в cookie
+    """
+    if user_id is None:
+        user_id = str(uuid.uuid4())
+        response.set_cookie(key="user_id", value=user_id)
+    return user_id
+
+
 @app.on_event("startup")
 async def on_startup():
     """Этот код выполняется при запуске приложения FastAPI для применения миграций"""
@@ -35,7 +44,8 @@ async def on_startup():
           responses=registration)
 async def parcel_registration(
         parcel: ParcelCreate,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        user_id: str = Depends(get_user_id)
 ):
     """
     Регистрирует новую посылку.
@@ -47,7 +57,7 @@ async def parcel_registration(
 
     Возвращает уникальный ID посылки для текущей сессии пользователя.
     """
-    parcel_id = await Parcel.create(db, parcel_data=parcel)
+    parcel_id = await Parcel.create(db, parcel_data=parcel, user_id=user_id)
 
     return {"id": parcel_id}
 
@@ -76,7 +86,8 @@ async def get_parcels(
         page_size: Optional[int] = 10,
         parcel_type_id: Optional[int] = None,
         has_delivery_cost: Optional[bool] = None,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        user_id: str = Depends(get_user_id)
 ):
     """
     Возвращает список посылок с поддержкой пагинации и фильтрации:
@@ -96,7 +107,7 @@ async def get_parcels(
     skip = (page - 1) * page_size
 
     parcels, total = await Parcel.get_all(db, skip=skip, limit=page_size, parcel_type_id=parcel_type_id,
-                                          has_delivery_cost=has_delivery_cost)
+                                          has_delivery_cost=has_delivery_cost, user_id=user_id)
 
     result = [
         ParcelOut(
@@ -116,7 +127,9 @@ async def get_parcels(
          summary="Получить информацию о посылке",
          description="Возвращает данные о посылке по её уникальному идентификатору.",
          responses=parcels_num)
-async def get_parcel(parcel_id: int, db: AsyncSession = Depends(get_db)):
+async def get_parcel(parcel_id: int,
+                     db: AsyncSession = Depends(get_db),
+                     user_id: str = Depends(get_user_id)):
     """
     Получить информацию о посылке по её ID:
 
@@ -130,7 +143,7 @@ async def get_parcel(parcel_id: int, db: AsyncSession = Depends(get_db)):
     - **parcel_type**: Тип посылки
     - **delivery_cost**: Стоимость доставки (если рассчитана)
     """
-    parcel = await Parcel.get_by_id(db, parcel_id)
+    parcel = await Parcel.get_by_id(db, parcel_id, user_id=user_id)
 
     return ParcelOut(
         id=parcel.id,
@@ -146,7 +159,9 @@ async def get_parcel(parcel_id: int, db: AsyncSession = Depends(get_db)):
           summary="Привязать посылку к транспортной компании",
           description="Привязывает посылку к указанной транспортной компании.",
           responses=parcel_asign_company)
-async def assign_company(parcel_id: int, company_id: int, db: AsyncSession = Depends(get_db)):
+async def assign_company(parcel_id: int, company_id: int,
+                         db: AsyncSession = Depends(get_db),
+                         user_id: str = Depends(get_user_id)):
     """
     Привязывает посылку к транспортной компании.
 
@@ -155,7 +170,6 @@ async def assign_company(parcel_id: int, company_id: int, db: AsyncSession = Dep
 
     Возвращает сообщение о результате операции.
     """
-    await Parcel.assign_company(db, parcel_id=parcel_id, company_id=company_id)
+    await Parcel.assign_company(db, parcel_id=parcel_id, company_id=company_id, user_id=user_id)
 
     return {"message": "Company assigned successfully"}
-

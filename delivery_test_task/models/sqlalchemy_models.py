@@ -30,7 +30,9 @@ class Parcel(Base):
     value = Column(Float, nullable=False)
     delivery_cost = Column(Float, nullable=True)
 
-    transport_company_id = Column(Integer, ForeignKey('transport_companies.json.id'), nullable=True)
+    user_id = Column(String, nullable=False)
+
+    transport_company_id = Column(Integer, ForeignKey('transport_companies.id'), nullable=True)
     parcel_type_id = Column(Integer, ForeignKey('parcel_types.id'), nullable=False)
     parcel_type = relationship("ParcelType", back_populates="parcels")
     transport_company = relationship("TransportCompany", back_populates="parcels")
@@ -40,13 +42,14 @@ class Parcel(Base):
     )
 
     @classmethod
-    async def create(cls, db: AsyncSession, parcel_data):
+    async def create(cls, db: AsyncSession, parcel_data, user_id: str):
         """Создает новую посылку и сохраняет в БД"""
         new_parcel = cls(
             name=parcel_data.name,
             weight=parcel_data.weight,
             value=parcel_data.value,
-            parcel_type_id=parcel_data.parcel_type_id
+            parcel_type_id=parcel_data.parcel_type_id,
+            user_id = user_id
         )
         db.add(new_parcel)
         try:
@@ -58,12 +61,12 @@ class Parcel(Base):
         return new_parcel.id
 
     @classmethod
-    async def get_all(cls, db: AsyncSession, skip: int = 0, limit: int = 10, parcel_type_id: int = None,
+    async def get_all(cls, db: AsyncSession, user_id: str, skip: int = 0, limit: int = 10, parcel_type_id: int = None,
                       has_delivery_cost: bool = None):
         """Возвращает список всех посылок с фильтрацией и пагинацией"""
 
         # Стартовый запрос с загрузкой связанных данных
-        stmt = select(cls).options(selectinload(cls.parcel_type))
+        stmt = select(cls).where(cls.user_id == user_id).options(selectinload(cls.parcel_type))
 
         # Применение фильтров по типу посылки и стоимости доставки
         if parcel_type_id:
@@ -90,9 +93,9 @@ class Parcel(Base):
         return parcels, total
 
     @classmethod
-    async def get_by_id(cls, db: AsyncSession, parcel_id: int):
+    async def get_by_id(cls, db: AsyncSession, parcel_id: int, user_id: str):
         """Получает посылку по ID с загрузкой типа посылки"""
-        stmt = select(cls).options(selectinload(cls.parcel_type)).where(cls.id == parcel_id)
+        stmt = select(cls).options(selectinload(cls.parcel_type)).where(cls.id == parcel_id).where(cls.user_id == user_id)
         result = await db.execute(stmt)
         parcel = result.scalar_one_or_none()
 
@@ -101,9 +104,9 @@ class Parcel(Base):
         return parcel
 
     @classmethod
-    async def assign_company(cls, db: AsyncSession, parcel_id: int, company_id: int):
+    async def assign_company(cls, db: AsyncSession, parcel_id: int, company_id: int, user_id: str):
         """Привязывает посылку к транспортной компании с блокировкой"""
-        stmt = select(cls).where(cls.id == parcel_id).with_for_update()
+        stmt = select(cls).where(cls.id == parcel_id).where(cls.user_id == user_id).with_for_update()
         result = await db.execute(stmt)
         parcel = result.scalar_one_or_none()
 
@@ -122,7 +125,7 @@ class Parcel(Base):
         return parcel
 
 class TransportCompany(Base):
-    __tablename__ = 'transport_companies.json'
+    __tablename__ = 'transport_companies'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
