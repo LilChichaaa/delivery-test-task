@@ -4,9 +4,9 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: runtime/Dockerfile
     container_name: test_task_app
-    command: sh startup.sh
+    command: sh runtime/startup.sh
     volumes:
       - .:/delivery_test_task
     ports:
