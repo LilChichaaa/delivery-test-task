@@ -1,3 +1,28 @@
+usd = {
+    200: {
+        "description": "id посылки",
+        "content": {
+            "application/json": {
+                "example": {
+                    "task_id": "219e4a25-d9e6-4cc1-acc7-2b7e9c5accf4"
+                }
+            }
+        }
+    },
+    500: {
+        "description": "Внутренняя ошибка сервера",
+        "content": {
+            "application/json": {
+                "example": {
+                    "error": "Internal Server Error",
+                    "message": "Something went wrong on the server",
+                    "endpoint": "http://127.0.0.1:8000/dollar-exchange-rate"
+                }
+            }
+        }
+    }
+}
+
 registration = {
     200: {
         "description": "id посылки",

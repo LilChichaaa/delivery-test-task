@@ -5,7 +5,7 @@ from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, Depends, Cookie, Response
 
-from .swagger import registration, parcel_types, parcels, parcels_num, parcel_asign_company
+from .swagger import registration, parcel_types, parcels, parcels_num, parcel_asign_company, usd
 
 from .main import app
 from ..models.pydantic_models import ParcelCreate, ParcelTypeOut, ParcelOut, ParcelList
@@ -13,6 +13,9 @@ from ..models.pydantic_models import ParcelCreate, ParcelTypeOut, ParcelOut, Par
 from ..models.database import get_db
 
 from ..models.sqlalchemy_models import Parcel, ParcelType
+
+from ..worker.tasks import check_dollar_exchange_rate
+
 
 
 def run_migrations():
@@ -38,6 +41,16 @@ async def on_startup():
     run_migrations()
     print("Миграции выполнены")
 
+
+@app.get("/dollar-exchange-rate", response_model=dict, tags=["Debug"], summary="Получение курса USD",
+          description="Принудительно получает курс USD и возвращает id celery задачи", responses=usd)
+async def dollar_exchange_rate():
+    """
+    Принудительно получает текущий курс USD
+
+    Возвращает id Celery-задачи
+    """
+    return {"task_id": check_dollar_exchange_rate.delay().id}
 
 @app.post("/parcel-registration", response_model=dict, tags=["Parcel Management"], summary="Регистрация посылки",
           description="Регистрирует новую посылку и возвращает уникальный идентификатор.",

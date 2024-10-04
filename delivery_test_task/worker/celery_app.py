@@ -1,5 +1,6 @@
 from .. import settings
 from celery import Celery
+from celery.schedules import crontab
 
 CELERY_BROKER_URL = settings.CELERY_BROKER_URL
 CELERY_RESULT_BACKEND = settings.CELERY_RESULT_BACKEND
@@ -20,8 +21,8 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     beat_schedule={
             'run-periodic-task-every-minute': {
-                'task': 'delivery_test_task.worker.tasks.periodic_task',
-                'schedule': 5.5,
+                'task': 'delivery_test_task.worker.tasks.check_dollar_exchange_rate',
+                'schedule': crontab(hour='*/24'),
             },
         }
 )
