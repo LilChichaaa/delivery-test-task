@@ -29,7 +29,7 @@ registration = {
         "content": {
             "application/json": {
                 "example": {
-                    "id": 1
+                    "task_id": "1jhk12312kj3h12kjh312kjh31j2kh31k3"
                 }
             }
         }

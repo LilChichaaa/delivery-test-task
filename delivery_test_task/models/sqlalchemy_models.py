@@ -58,7 +58,7 @@ class Parcel(Base):
         except IntegrityError:
             await db.rollback()
             raise HTTPException(status_code=400, detail="Parcel creation failed due to integrity error.")
-        return new_parcel.id
+        return new_parcel
 
     @classmethod
     async def get_all(cls, db: AsyncSession, user_id: str, skip: int = 0, limit: int = 10, parcel_type_id: int = None,

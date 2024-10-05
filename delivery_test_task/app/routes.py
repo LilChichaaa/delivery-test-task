@@ -14,7 +14,7 @@ from ..models.database import get_db
 
 from ..models.sqlalchemy_models import Parcel, ParcelType
 
-from ..worker.tasks import check_dollar_exchange_rate
+from ..worker.tasks import check_dollar_exchange_rate, register_parcel
 
 
 
@@ -57,7 +57,7 @@ async def dollar_exchange_rate():
           responses=registration)
 async def parcel_registration(
         parcel: ParcelCreate,
-        db: AsyncSession = Depends(get_db),
+        # db: AsyncSession = Depends(get_db),
         user_id: str = Depends(get_user_id)
 ):
     """
@@ -70,9 +70,10 @@ async def parcel_registration(
 
     Возвращает уникальный ID посылки для текущей сессии пользователя.
     """
-    parcel_id = await Parcel.create(db, parcel_data=parcel, user_id=user_id)
+    # parcel_id = await Parcel.create(db, parcel_data=parcel, user_id=user_id)
+    # register_parcel.delay(parcel.dict, user_id)
 
-    return {"id": parcel_id}
+    return {"task_id": register_parcel.delay(parcel.dict(), user_id).id}
 
 
 @app.get("/parcel-types", response_model=list[ParcelTypeOut], tags=["Parcel Management"],
