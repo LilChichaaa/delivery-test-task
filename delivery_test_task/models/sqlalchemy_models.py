@@ -17,7 +17,15 @@ class ParcelType(Base):
 
     @classmethod
     async def get_all_types(cls, db: AsyncSession):
-        """Возвращает список всех типов посылок"""
+        """
+        Возвращает список всех типов посылок.
+
+        Параметры:
+        - db (AsyncSession): Асинхронная сессия базы данных.
+
+        Возвращает:
+        - List[ParcelType]: Список объектов типов посылок.
+        """
         result = await db.execute(select(cls))
         return result.scalars().all()
 
@@ -43,7 +51,20 @@ class Parcel(Base):
 
     @classmethod
     async def create(cls, db: AsyncSession, parcel_data, user_id: str):
-        """Создает новую посылку и сохраняет в БД"""
+        """
+        Создает новую посылку и сохраняет в базе данных.
+
+        Параметры:
+        - db (AsyncSession): Асинхронная сессия базы данных.
+        - parcel_data (ParcelCreate): Данные для создания посылки.
+        - user_id (str): Идентификатор пользователя.
+
+        Возвращает:
+        - Parcel: Созданный объект посылки.
+
+        Исключения:
+        - HTTPException 400: Если произошла ошибка целостности данных при создании посылки.
+        """
         new_parcel = cls(
             name=parcel_data.name,
             weight=parcel_data.weight,
@@ -63,7 +84,20 @@ class Parcel(Base):
     @classmethod
     async def get_all(cls, db: AsyncSession, user_id: str, skip: int = 0, limit: int = 10, parcel_type_id: int = None,
                       has_delivery_cost: bool = None):
-        """Возвращает список всех посылок с фильтрацией и пагинацией"""
+        """
+        Возвращает список всех посылок с фильтрацией и пагинацией.
+
+        Параметры:
+        - db (AsyncSession): Асинхронная сессия базы данных.
+        - user_id (str): Идентификатор пользователя.
+        - skip (int): Количество записей для пропуска (по умолчанию 0).
+        - limit (int): Максимальное количество записей для возврата (по умолчанию 10).
+        - parcel_type_id (int, optional): Идентификатор типа посылки для фильтрации.
+        - has_delivery_cost (bool, optional): Фильтр по наличию стоимости доставки.
+
+        Возвращает:
+        - Tuple[List[Parcel], int]: Список посылок и общее количество записей после фильтрации.
+        """
 
         # Стартовый запрос с загрузкой связанных данных
         stmt = select(cls).where(cls.user_id == user_id).options(selectinload(cls.parcel_type))
@@ -94,7 +128,20 @@ class Parcel(Base):
 
     @classmethod
     async def get_by_id(cls, db: AsyncSession, parcel_id: int, user_id: str):
-        """Получает посылку по ID с загрузкой типа посылки"""
+        """
+        Получает посылку по идентификатору с загрузкой типа посылки.
+
+        Параметры:
+        - db (AsyncSession): Асинхронная сессия базы данных.
+        - parcel_id (int): Идентификатор посылки.
+        - user_id (str): Идентификатор пользователя.
+
+        Возвращает:
+        - Parcel: Объект посылки.
+
+        Исключения:
+        - HTTPException 404: Если посылка не найдена.
+        """
         stmt = select(cls).options(selectinload(cls.parcel_type)).where(cls.id == parcel_id).where(cls.user_id == user_id)
         result = await db.execute(stmt)
         parcel = result.scalar_one_or_none()
@@ -105,7 +152,23 @@ class Parcel(Base):
 
     @classmethod
     async def assign_company(cls, db: AsyncSession, parcel_id: int, company_id: int, user_id: str):
-        """Привязывает посылку к транспортной компании с блокировкой"""
+        """
+        Привязывает посылку к транспортной компании с блокировкой записи.
+
+        Параметры:
+        - db (AsyncSession): Асинхронная сессия базы данных.
+        - parcel_id (int): Идентификатор посылки.
+        - company_id (int): Идентификатор транспортной компании.
+        - user_id (str): Идентификатор пользователя.
+
+        Возвращает:
+        - Parcel: Обновленный объект посылки.
+
+        Исключения:
+        - HTTPException 404: Если посылка не найдена.
+        - HTTPException 400: Если посылка уже привязана к транспортной компании или произошла ошибка целостности данных.
+        - HTTPException 500: Если произошла ошибка базы данных из-за конкурентности.
+        """
         try:
             async with db.begin():
                 # Выполняем запрос с блокировкой строки

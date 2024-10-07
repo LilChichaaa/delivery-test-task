@@ -16,8 +16,17 @@ from ..models.sqlalchemy_models import Parcel
 from ..models.pydantic_models import ParcelCreate
 
 
-def run_async_task(async_func, *args, **kwargs):
-    """Helper function to run an async function in a Celery task."""
+def run_async_task(async_func, *args, **kwargs) -> None:
+    """
+    Помощник для запуска асинхронной функции внутри задачи Celery.
+
+    Если событийный цикл уже запущен, планирует выполнение корутины.
+    В противном случае запускает событийный цикл и выполняет корутину.
+
+    Параметры:
+    - async_func: Асинхронная функция для выполнения.
+    - *args, **kwargs: Аргументы для передачи в асинхронную функцию.
+    """
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
@@ -29,19 +38,49 @@ def run_async_task(async_func, *args, **kwargs):
     else:
         loop.run_until_complete(async_func(*args, **kwargs))
 
-@celery_app.task
+@celery_app.task(
+    autoretry_for=(Exception,),
+    retry_kwargs={'max_retries': 5, 'countdown': 20},
+    retry_backoff=True,
+    retry_backoff_max=30,
+    retry_jitter=True
+)
 def register_parcel(parcel: dict, user_id: str) -> None:
-    """Celery task to register a parcel asynchronously."""
+    """
+    Задача Celery для асинхронной регистрации посылки.
+
+    Параметры:
+    - parcel: Словарь с данными посылки.
+    - user_id: Идентификатор пользователя.
+    """
     run_async_task(register_parcel_async, parcel, user_id)
 
-@celery_app.task
+@celery_app.task(
+    autoretry_for=(Exception,),
+    retry_kwargs={'max_retries': 5, 'countdown': 20},
+    retry_backoff=True,
+    retry_backoff_max=30,
+    retry_jitter=True
+)
 def check_dollar_exchange_rate() -> None:
-    """Celery task to register a parcel asynchronously."""
+    """
+    Задача Celery для асинхронного обновления курса доллара.
+
+    Запускает асинхронную функцию для получения текущего курса USD и сохранения его в Redis.
+    """
     run_async_task(check_dollar_exchange_rate_async)
 
 
 async def check_dollar_exchange_rate_async() -> float:
-    """Асинхронное получение курса USD"""
+    """
+    Асинхронное получение текущего курса USD и сохранение его в Redis.
+
+    Делает запрос к API Центробанка России для получения текущего курса USD.
+    Кэширует полученное значение в Redis.
+
+    Возвращает:
+    - usd_rate: Текущий курс USD в виде числа с плавающей запятой.
+    """
     url = 'https://www.cbr-xml-daily.ru/daily_json.js'
 
     async with aiohttp.ClientSession() as session:
@@ -62,7 +101,13 @@ async def check_dollar_exchange_rate_async() -> float:
                 raise Exception(f"Не удалось получить курс USD, статус {response.status}")
 
 async def get_cached_usd_rate() -> Union[float, None]:
-    """Получение курса USD из Redis"""
+    """
+    Асинхронное получение курса USD из Redis.
+
+    Возвращает:
+    - usd_rate: Курс USD в виде числа с плавающей запятой, если он есть в кэше.
+    - None: Если курса нет в кэше.
+    """
 
     cached_rate = await redis_client.get(settings.USD_RATE_KEY)
 
@@ -76,7 +121,20 @@ async def get_cached_usd_rate() -> Union[float, None]:
 
 
 async def register_parcel_async(parcel: dict, user_id: str) -> None:
-    """Асинхронная регистрация посылки"""
+    """
+    Асинхронная регистрация посылки в базе данных с вычислением стоимости доставки.
+
+    Параметры:
+    - parcel: Словарь с данными посылки.
+    - user_id: Идентификатор пользователя.
+
+    Процесс:
+    1. Создает новую запись посылки в базе данных.
+    2. Пытается получить курс USD из кэша Redis.
+    3. Если курс не найден в кэше, запрашивает текущий курс и сохраняет его в кэш.
+    4. Вычисляет стоимость доставки на основе веса, стоимости посылки и курса USD.
+    5. Сохраняет обновленную информацию о посылке в базе данных.
+    """
     async for db in get_db():
         parcel = await Parcel.create(db, parcel_data=ParcelCreate(**parcel), user_id=user_id)
 
@@ -89,7 +147,17 @@ async def register_parcel_async(parcel: dict, user_id: str) -> None:
 
         await db.commit()
 
-def count_delivery_cost(parcel: Parcel, usd_rate: float):
+def count_delivery_cost(parcel: Parcel, usd_rate: float) -> float:
+    """
+    Вычисление стоимости доставки посылки.
+
+    Параметры:
+    - parcel: Объект посылки.
+    - usd_rate: Текущий курс USD.
+
+    Возвращает:
+    - Стоимость доставки в виде числа с плавающей запятой.
+    """
     return  (parcel.weight * 0.5 + parcel.value*0.01)*usd_rate
 
 

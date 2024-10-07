@@ -1,9 +1,10 @@
 import uuid
+import logging
 from typing import Optional
 from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, Depends, Cookie, Response
+from fastapi import HTTPException, Depends, Cookie, Response, Request
 
 from .swagger import registration, parcel_types, parcels, parcels_num, parcel_asign_company, usd
 
@@ -15,8 +16,27 @@ from ..models.database import get_db
 from ..models.sqlalchemy_models import Parcel, ParcelType
 
 from ..worker.tasks import check_dollar_exchange_rate, register_parcel
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Middleware для логирования запросов"""
+    logger = logging.getLogger('app')
 
+    print(f"Имя логгера: {logger.name}")
 
+    for handler in logger.handlers:
+        print(f"Хендлер: {handler}")
+        print(f"  Уровень хендлера: {logging.getLevelName(handler.level)}")
+
+    logger.info(f"Запрос: {request.method} {request.url}")
+
+    body = await request.body()
+    logger.info(f"Тело запроса: {body.decode('utf-8')}")
+    if body:
+        logger.info(f"Тело запроса: {body.decode('utf-8')}")
+
+    response = await call_next(request)
+
+    return response
 
 def run_migrations():
     """Применение миграций Alembic при старте приложения"""
@@ -70,8 +90,6 @@ async def parcel_registration(
 
     Возвращает уникальный ID посылки для текущей сессии пользователя.
     """
-    # parcel_id = await Parcel.create(db, parcel_data=parcel, user_id=user_id)
-    # register_parcel.delay(parcel.dict, user_id)
 
     return {"task_id": register_parcel.delay(parcel.dict(), user_id).id}
 

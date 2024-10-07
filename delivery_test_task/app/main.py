@@ -1,4 +1,8 @@
-from fastapi import FastAPI, APIRouter
+import logging
+from fastapi import FastAPI
+from .. import setup_logging
+
+setup_logging()
 
 app = FastAPI(
     title="International Delivery API",
@@ -14,3 +18,4 @@ app = FastAPI(
         "url": "https://example.com/license/",
     }
 )
+
