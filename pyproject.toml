@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.10"
 fastapi = "^0.115.0"
 sqlalchemy = "^2.0.35"
-redis = "^5.1.0"
+redis = {extras = ["asyncio"], version = "^5.1.1"}
 celery = "^5.4.0"
 uvicorn = "^0.31.0"
 dynaconf = "^3.2.6"
@@ -17,6 +17,7 @@ pydantic = "^2.9.2"
 asyncpg = "^0.29.0"
 alembic = "^1.13.3"
 psycopg2 = "^2.9.9"
+aiohttp = "^3.10.9"
 
 [build-system]
 requires = ["poetry-core"]
