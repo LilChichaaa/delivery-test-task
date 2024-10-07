@@ -1,5 +1,6 @@
 import uuid
 import logging
+
 from typing import Optional
 from alembic import command
 from alembic.config import Config
