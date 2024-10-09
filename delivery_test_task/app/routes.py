@@ -1,6 +1,4 @@
 import uuid
-import logging
-import sys
 
 from typing import Optional
 from alembic import command
@@ -23,25 +21,28 @@ from loguru import logger
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Middleware для логирования запросов"""
+    logger.info(f"Запрос: {request.method} {request.url}")
     try:
-
-        logger.info(f"Запрос: {request.method} {request.url}")
-
         body = await request.body()
-        logger.info(f"Тело запроса: {body.decode('utf-8')}")
         if body:
-            logger.info(f"Тело запроса: {body.decode('utf-8')}")
-
+            logger.debug(f"Тело запроса: {body.decode('utf-8')}")
         response = await call_next(request)
+        logger.info(f"Ответ: {response.status_code} {request.url}")
         return response
-    except Exception:
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        logger.exception(f"Ошибка при обработке запроса {request.url}: {str(e)}")
+        raise
 
 def run_migrations():
     """Применение миграций Alembic при старте приложения"""
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
+    logger.info("Запуск миграций Alembic...")
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Миграции успешно применены")
+    except Exception as e:
+        logger.exception(f"Ошибка при применении миграций: {str(e)}")
+        raise
 
 
 def get_user_id(user_id: Optional[str] = Cookie(None), response: Response = None):
@@ -51,15 +52,17 @@ def get_user_id(user_id: Optional[str] = Cookie(None), response: Response = None
     if user_id is None:
         user_id = str(uuid.uuid4())
         response.set_cookie(key="user_id", value=user_id)
+        logger.debug(f"Создан новый user_id: {user_id}")
+    else:
+        logger.debug(f"Используется существующий user_id: {user_id}")
     return user_id
 
 
 @app.on_event("startup")
 async def on_startup():
     """Этот код выполняется при запуске приложения FastAPI для применения миграций"""
-    print("Применение миграций...")
+    logger.info("Применение миграций при запуске приложения")
     run_migrations()
-    print("Миграции выполнены")
 
 
 @app.get("/dollar-exchange-rate", response_model=dict, tags=["Debug"], summary="Получение курса USD",
@@ -70,14 +73,16 @@ async def dollar_exchange_rate():
 
     Возвращает id Celery-задачи
     """
-    return {"task_id": check_dollar_exchange_rate.delay().id}
+    logger.info("Запрос на получение курса USD")
+    task_id = check_dollar_exchange_rate.delay().id
+    logger.debug(f"Celery-задача для получения курса USD создана, id: {task_id}")
+    return {"task_id": task_id}
 
 @app.post("/parcel-registration", response_model=dict, tags=["Parcel Management"], summary="Регистрация посылки",
           description="Регистрирует новую посылку и возвращает уникальный идентификатор.",
           responses=registration)
 async def parcel_registration(
         parcel: ParcelCreate,
-        # db: AsyncSession = Depends(get_db),
         user_id: str = Depends(get_user_id)
 ):
     """
@@ -91,7 +96,10 @@ async def parcel_registration(
     Возвращает уникальный ID посылки для текущей сессии пользователя.
     """
 
-    return {"task_id": register_parcel.delay(parcel.dict(), user_id).id}
+    logger.info(f"Регистрация новой посылки для пользователя {user_id}")
+    task_id = register_parcel.delay(parcel.dict(), user_id).id
+    logger.debug(f"Celery-задача для регистрации посылки создана, id: {task_id}")
+    return {"task_id": task_id}
 
 
 @app.get("/parcel-types", response_model=list[ParcelTypeOut], tags=["Parcel Management"],
@@ -105,8 +113,9 @@ async def get_parcel_types(db: AsyncSession = Depends(get_db)):
     - Electronics
     - Clothing
     """
+    logger.info("Запрос на получение всех типов посылок")
     parcel_types = await ParcelType.get_all_types(db)
-
+    logger.debug(f"Найдено типов посылок: {len(parcel_types)}")
     return parcel_types
 
 
@@ -133,6 +142,7 @@ async def get_parcels(
     - **parcels**: Список посылок
     - **total**: Общее количество посылок
     """
+    logger.info(f"Запрос на получение списка посылок для пользователя {user_id}")
     if page < 1 or page_size < 1:
         raise HTTPException(status_code=400, detail="Page and page_size must be positive integers.")
 
@@ -140,6 +150,8 @@ async def get_parcels(
 
     parcels, total = await Parcel.get_all(db, skip=skip, limit=page_size, parcel_type_id=parcel_type_id,
                                           has_delivery_cost=has_delivery_cost, user_id=user_id)
+
+    logger.debug(f"Найдено {len(parcels)} посылок из {total} доступных")
 
     result = [
         ParcelOut(
@@ -175,6 +187,8 @@ async def get_parcel(parcel_id: int,
     - **parcel_type**: Тип посылки
     - **delivery_cost**: Стоимость доставки (если рассчитана)
     """
+    logger.info(f"Запрос на получение информации о посылке {parcel_id} для пользователя {user_id}")
+
     parcel = await Parcel.get_by_id(db, parcel_id, user_id=user_id)
 
     return ParcelOut(
@@ -202,6 +216,8 @@ async def assign_company(parcel_id: int, company_id: int,
 
     Возвращает сообщение о результате операции.
     """
+    logger.info(f"Привязка посылки {parcel_id} к компании {company_id} для пользователя {user_id}")
     await Parcel.assign_company(db, parcel_id=parcel_id, company_id=company_id, user_id=user_id)
+    logger.debug(f"Посылка {parcel_id} успешно привязана к компании {company_id}")
 
     return {"message": "Company assigned successfully"}
