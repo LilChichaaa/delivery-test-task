@@ -1,5 +1,6 @@
 import uuid
 import logging
+import sys
 
 from typing import Optional
 from alembic import command
@@ -17,27 +18,25 @@ from ..models.database import get_db
 from ..models.sqlalchemy_models import Parcel, ParcelType
 
 from ..worker.tasks import check_dollar_exchange_rate, register_parcel
+from loguru import logger
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Middleware для логирования запросов"""
-    logger = logging.getLogger('app')
+    try:
 
-    print(f"Имя логгера: {logger.name}")
+        logger.info(f"Запрос: {request.method} {request.url}")
 
-    for handler in logger.handlers:
-        print(f"Хендлер: {handler}")
-        print(f"  Уровень хендлера: {logging.getLevelName(handler.level)}")
-
-    logger.info(f"Запрос: {request.method} {request.url}")
-
-    body = await request.body()
-    logger.info(f"Тело запроса: {body.decode('utf-8')}")
-    if body:
+        body = await request.body()
         logger.info(f"Тело запроса: {body.decode('utf-8')}")
+        if body:
+            logger.info(f"Тело запроса: {body.decode('utf-8')}")
 
-    response = await call_next(request)
-
-    return response
+        response = await call_next(request)
+        return response
+    except Exception:
+        import traceback
+        traceback.print_exc()
 
 def run_migrations():
     """Применение миграций Alembic при старте приложения"""

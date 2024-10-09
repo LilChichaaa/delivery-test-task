@@ -1,26 +1,19 @@
-import logging
-import logging.config as logging_config
+import sys
 import os
 import json
 from fastapi import FastAPI
-def setup_logging(default_path: str = 'logging_config.json', default_level: int = logging.INFO):
-    """
-    Настройка логгера из JSON-файла конфигурации.
+from loguru import logger
 
-    :param default_path: Путь к файлу конфигурации.
-    :param default_level: Уровень логирования по умолчанию, если файл конфигурации не найден.
-    """
-    path = default_path
-    if os.path.exists(path):
-        with open(path, 'rt', encoding='utf-8') as f:
-            config = json.load(f)
-        logging_config.dictConfig(config)
-    else:
-        logging.basicConfig(level=default_level)
-        print(f"Файл конфигурации {default_path} не найден. Используется базовое логирование.")
-
-
-setup_logging()
+logger.remove()  # Удаляем все существующие хэндлеры для того, чтобы настроить новый
+logger.add(
+    sys.stdout,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+    serialize=True,
+    colorize=True,
+    backtrace=True,
+    diagnose=True,
+    enqueue=True
+)
 
 app = FastAPI(
     title="International Delivery API",
@@ -36,6 +29,3 @@ app = FastAPI(
         "url": "https://example.com/license/",
     }
 )
-
-logger = logging.getLogger('app')
-logger.info('***')
