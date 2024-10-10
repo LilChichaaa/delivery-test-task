@@ -6,7 +6,9 @@ services:
       context: .
       dockerfile: runtime/Dockerfile
     container_name: test_task_app
-    command: sh runtime/startup.sh
+    command: sh runtime/startup.sh ${MODE}
+    environment:
+      MODE: ${MODE:-prod}
     volumes:
       - .:/delivery_test_task
     ports:

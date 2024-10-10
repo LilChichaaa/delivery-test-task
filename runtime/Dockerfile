@@ -9,7 +9,7 @@ COPY pyproject.toml poetry.lock ./
 RUN apk add --no-cache build-base postgresql-dev gcc musl-dev libpq && \
     pip install poetry && \
     poetry config virtualenvs.create false && \
-    poetry install --no-dev
+    poetry install
 
 FROM python:3.11-alpine
 
